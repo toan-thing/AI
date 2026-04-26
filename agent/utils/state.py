@@ -48,7 +48,6 @@ class AgentState(BaseModel):
     ] = None
     brand: Optional[str] = None
     series: Optional[str] = None
-    name: Optional[str] = None
     color: Optional[str] = None
 
     price_min: Optional[int] = None
@@ -123,4 +122,4 @@ def create_initial_state(
         )
     except Exception as e:
         print(f"[NEO4J PROFILE ERROR] user_id={user_id} error={e}")
-        return AgentState(messages=messages)
+        return AgentState(user_id=user_id, messages=messages)

@@ -29,6 +29,13 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
     Also returns total number of matched products to indicate result coverage.
     """
 
+    if not state.category:
+        return {
+            "total": 0,
+            "products": [],
+            "note": "Category is required for product search. Ask the user to specify a product category first."
+        }
+
     conn = get_pg_conn()
     cur = conn.cursor()
 
@@ -47,10 +54,6 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
         if state.series:
             where_clauses.append("p.series ILIKE %s")
             values.append(f"%{state.series}%")
-
-        if state.name:
-            where_clauses.append("p.name ILIKE %s")
-            values.append(f"%{state.name}%")
 
         if state.color:
             where_clauses.append("""
@@ -325,6 +328,8 @@ def semantic_search(
 
     Returns relevant text chunks to support natural language answers.
     """
+
+    k = min(max(k, 1), 10)
 
     if collection_name == "products":
         collection = product_collection

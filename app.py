@@ -5,7 +5,7 @@ import time
 import os
 import traceback
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, messages_from_dict
 
 from agent.agent import graph
 from agent.utils.state import create_initial_state, AgentState
@@ -77,10 +77,9 @@ def chat(req: ChatRequest):
             req.customer_id
         )
 
-        result_dict = graph.invoke({
-            **state.model_dump(),
-            "messages": [HumanMessage(content=req.message)]
-        })
+        state_dict = state.model_dump()
+        state_dict["messages"] = state.messages + [HumanMessage(content=req.message)]
+        result_dict = graph.invoke(state_dict)
 
         updated_state = AgentState(**result_dict)
         save_session(req.session_id, updated_state)
@@ -154,7 +153,6 @@ def get_state(session_id: str):
         "category": state.category,
         "brand": state.brand,
         "series": state.series,
-        "name": state.name,
         "color": state.color,
         "price_min": state.price_min,
         "price_max": state.price_max,

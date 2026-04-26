@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, Literal, List, Dict, Any
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -34,7 +34,6 @@ def build_llm_input(state: AgentState) -> Dict[str, Any]:
             "category": state.category,
             "brand": state.brand,
             "series": state.series,
-            "name": state.name,
             "color": state.color,
 
             "price_min": state.price_min,
@@ -63,7 +62,6 @@ class ParseOutput(BaseModel):
     ] = None
     brand: Optional[str] = None
     series: Optional[str] = None
-    name: Optional[str] = None
     color: Optional[str] = None
 
     price_min: Optional[int] = None
@@ -82,17 +80,24 @@ class Parse:
             "messages": state.messages[-10:],
         })
 
+        updates = {}
+
         if (
             result.category is not None
             and state.category is not None
             and result.category != state.category
         ):
-            state = AgentState(
-                user_id=state.user_id,
-                messages=state.messages,
-            )
-
-        updates = {}
+            updates = {
+                "category": result.category,
+                "brand": None,
+                "series": None,
+                "color": None,
+                "price_min": None,
+                "price_max": None,
+                "spec": SpecState(),
+                "mentioned_products": [],
+                "resolved_products": [],
+            }
 
         if result.category is not None:
             updates["category"] = result.category
@@ -103,9 +108,6 @@ class Parse:
         if result.series and result.series.strip():
             updates["series"] = result.series.strip()
 
-        if result.name and result.name.strip():
-            updates["name"] = result.name.strip()
-
         if result.color and result.color.strip():
             updates["color"] = result.color.strip()
 
@@ -115,7 +117,6 @@ class Parse:
         if result.price_max is not None:
             updates["price_max"] = result.price_max
 
-        # merge spec
         spec_updates = {}
         for field in state.spec.model_fields.keys():
             src_value: SpecFilter = getattr(result.spec, field)
@@ -129,14 +130,16 @@ class Parse:
             spec_updates[field] = src_value
 
         if spec_updates:
-            updates["spec"] = state.spec.model_copy(update=spec_updates, deep=True)
+            base_spec = updates.get("spec", state.spec)
+            updates["spec"] = base_spec.model_copy(update=spec_updates, deep=True)
 
-        # merge mentioned_products
         if result.mentioned_products:
             seen = set()
             merged = []
+            
+            existing = updates.get("mentioned_products", state.mentioned_products)
 
-            for name in state.mentioned_products + result.mentioned_products:
+            for name in existing + result.mentioned_products:
                 if not isinstance(name, str):
                     continue
                 clean = name.strip()
@@ -172,7 +175,6 @@ Bạn là hệ thống trích xuất thông tin sản phẩm từ câu người 
 
 - brand: hãng (vd: Dell, Apple, Asus)
 - series: dòng sản phẩm (vd: ThinkPad, MacBook Pro)
-- name: tên sản phẩm cụ thể (vd: MacBook Pro M3)
 - color: màu sắc
 
 - price_min: giá tối thiểu (int)
@@ -201,7 +203,7 @@ Mỗi spec phải có dạng:
    ❌ "giá rẻ" → KHÔNG tự đặt price
 
 3. Chuẩn hóa:
-   - brand, series, name, color → string sạch (trim)
+   - brand, series, color → string sạch (trim)
    - mentioned_products → giữ nguyên tên
 
 4. spec:
@@ -220,7 +222,6 @@ Mỗi spec phải có dạng:
   "category": "laptop",
   "brand": "Apple",
   "series": "MacBook Pro",
-  "name": "MacBook Pro M3",
   "color": null,
   "price_min": 20000000,
   "price_max": null,
@@ -337,7 +338,7 @@ class Reason:
                 isinstance(result.content, list)
                 and (not result.content or not result.content[0].get("text"))
             )) and not result.tool_calls:
-                local_messages.append(HumanMessage(content="Hãy trả lời lại cho khách hàng một cách rõ ràng và cụ thể."))
+                local_messages.append(SystemMessage(content="Hãy trả lời lại cho khách hàng một cách rõ ràng và cụ thể."))
             else:
                 break
         return {"messages": result}
@@ -357,7 +358,7 @@ Bạn là AI tư vấn sản phẩm (laptop, điện thoại, TV, màn hình...)
 
 🧠 NGỮ CẢNH (STATE):
 Bạn có thể truy cập:
-- category, brand, series, name, color
+- category, brand, series, color
 - price_min, price_max
 - spec (ram, storage, screen_size, ...)
 - mentioned_products
