@@ -26,7 +26,7 @@ class ResolvedProduct(BaseModel):
     input_name: str
     matched_name: Optional[str] = None
     product_id: Optional[str] = None
-    score: Optional[float] = None
+    similarity: Optional[float] = None
 
 class AgentState(BaseModel):
     user_id: Optional[str] = None

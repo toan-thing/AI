@@ -22,8 +22,10 @@ def build_llm_input(state: AgentState) -> Dict[str, Any]:
     resolved_products = [
         {
             "product_id": p.product_id,
-            "name": p.matched_name,
-            "score": p.score,
+            "input_name": p.input_name,
+            "matched_name": p.matched_name,
+            "similarity": p.similarity,
+            "match_confidence": "cao" if (p.similarity or 0) >= 0.5 else "thấp — cần xác nhận với khách",
         }
         for p in state.resolved_products
     ]
@@ -35,12 +37,9 @@ def build_llm_input(state: AgentState) -> Dict[str, Any]:
             "brand": state.brand,
             "series": state.series,
             "color": state.color,
-
             "price_min": state.price_min,
             "price_max": state.price_max,
-
             "spec": state.spec.model_dump(),
-
             "mentioned_products": state.mentioned_products,
             "resolved_products": resolved_products,
         },
@@ -326,11 +325,10 @@ def Resolve_products(state: AgentState, config: RunnableConfig):
 
             cur.execute(
                 """
-                SELECT id, name, rating,
-                    similarity(name, %s) AS sim
+                SELECT id, name, similarity(name, %s) AS sim
                 FROM product
                 WHERE similarity(name, %s) > 0.3
-                ORDER BY sim DESC, rating DESC
+                ORDER BY sim DESC
                 LIMIT 1
                 """,
                 (clean_name, clean_name),
@@ -340,7 +338,7 @@ def Resolve_products(state: AgentState, config: RunnableConfig):
             if not row:
                 continue
 
-            product_id, matched_name, rating = row
+            product_id, matched_name, sim = row
 
             if product_id in existing_ids:
                 continue
@@ -350,7 +348,7 @@ def Resolve_products(state: AgentState, config: RunnableConfig):
                     input_name=clean_name,
                     matched_name=matched_name,
                     product_id=product_id,
-                    score=float(rating) if rating is not None else None,
+                    similarity=float(sim) if sim is not None else None,
                 )
             )
 
@@ -407,6 +405,18 @@ Bạn là nhân viên tư vấn bán hàng AI của một cửa hàng điện t�
 ═══════════════════════════════════════════════════════════
 
 🚦 QUY TRÌNH QUYẾT ĐỊNH:
+
+── BƯỚC ĐẶC BIỆT: Kiểm tra độ tin cậy sản phẩm ──
+
+Trước khi tư vấn, kiểm tra resolved_products trong state:
+
+Nếu có sản phẩm với match_confidence = "thấp — cần xác nhận với khách":
+→ Hỏi khách xác nhận trước: "Bạn hỏi về [input_name] — bên mình tìm thấy [matched_name], đây có phải sản phẩm bạn muốn hỏi không?"
+→ KHÔNG tư vấn cho đến khi khách xác nhận.
+→ KHÔNG gọi tool cho sản phẩm đó cho đến khi khách xác nhận.
+
+Nếu match_confidence = "cao":
+→ Tiếp tục bình thường, không cần hỏi.
 
 ── BƯỚC 1: Khách hỏi chung chung hoặc thiếu thông tin? ──
 
