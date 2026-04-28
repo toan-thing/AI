@@ -49,10 +49,11 @@ neo4j_driver: Driver = GraphDatabase.driver(
 
 
 
-try:
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-except Exception:
-    device = "cpu"
+# try:
+#     device = "cuda" if torch.cuda.is_available() else "cpu"
+# except Exception:
+#     device = "cpu"
+device = os.getenv("EMBEDDING_DEVICE", "cpu")
 
 embedding_function = SentenceTransformerEmbeddingFunction(
     model_name="dangvantuan/vietnamese-embedding",

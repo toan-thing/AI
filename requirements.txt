@@ -8,7 +8,7 @@ fastapi
 uvicorn
 
 sentence-transformers
-torch
+# torch
 
 psycopg2-binary
 sqlalchemy
