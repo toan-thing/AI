@@ -120,9 +120,6 @@ class Parse:
         for field in state.spec.model_fields.keys():
             src_value: SpecFilter = getattr(result.spec, field)
 
-            if not src_value:
-                continue
-
             if src_value.value is None and src_value.op is None:
                 continue
 
@@ -504,7 +501,7 @@ Nếu đã có dữ liệu từ tool hoặc resolved_products:
 {state}"""
     ),
     ("placeholder", "{messages}")
-]).partial(time=datetime.now)
+]).partial(time=datetime.now())
 
 # reason_llm = ChatGoogleGenerativeAI(
 #     model="gemini-2.5-flash",
