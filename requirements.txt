@@ -22,3 +22,6 @@ python-dotenv
 pydantic
 
 trustcall
+#db sync
+psycopg2
+confluent_kafka
