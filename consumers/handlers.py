@@ -2,14 +2,15 @@ from agent.utils.db import get_pg_conn, release_pg_conn
 
 from agent.utils.db import get_pg_conn, release_pg_conn
 
-def handle_product_sync(data: dict):
+import json
+
+def handle_product_sync(data:dict):
     conn = None
     cur = None
     
     try:
         conn = get_pg_conn()
         cur = conn.cursor()
-        
         source_product_id = data.get('productId')
         name = data.get('name')
         rating = data.get('rating')
@@ -34,42 +35,41 @@ def handle_product_sync(data: dict):
             
             if update_entity == "PRODUCT":
 
-                cur.execute("SELECT id FROM product WHERE ps_product_id = %s;", (source_product_id,))
+                cur.execute("SELECT ps_product_id FROM product WHERE ps_product_id = %s;", (source_product_id,))
                 if cur.fetchone():
                     print(f"Error: Product {source_product_id} already exists. Cannot CREATE.")
                     return 
                 
                 cur.execute("""
-                    INSERT INTO product (name, ps_product_id, rating, rated_quantity, brand, category) 
-                    VALUES (%s, %s, %s, %s, %s, %s) RETURNING id;
-                """, (name, source_product_id, rating, rated_quantity, brand, category))
-                internal_product_id = cur.fetchone()[0]
+                    INSERT INTO product (name, ps_product_id, average_rating, rated_quantity, brand, category,series) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING ps_product_id;
+                """, (name, source_product_id, rating, rated_quantity, brand, category,"standard"))
                 
                 for var in variants:
                     source_variant_id = var.get('variantId')
                     color = var.get('color')
                     price = var.get('price')
                     image = var.get('mainImage')
+                    stock = var.get('inStock')
                     
                     cur.execute("""
-                        INSERT INTO variant (product_id, color, price, image, ps_product_id, ps_variant_id)
+                        INSERT INTO variant (color, price, image, ps_product_id, ps_variant_id, stock)
                         VALUES (%s, %s, %s, %s, %s, %s);
-                    """, (internal_product_id, color, price, image, source_product_id, source_variant_id))
+                    """, (color, price, image, source_product_id, source_variant_id, stock))
 
             elif update_entity == "VARIANT":
-                cur.execute("SELECT id FROM product WHERE ps_product_id = %s;", (source_product_id,))
+                cur.execute("SELECT ps_product_id FROM product WHERE ps_product_id = %s;", (source_product_id,))
                 prod_row = cur.fetchone()
                 
                 if not prod_row:
                     print(f"Error: Parent Product {source_product_id} not found in DB. Cannot CREATE variant.")
                     return
                 
-                internal_product_id = prod_row[0]
                 
                 for var in variants:
                     source_variant_id = var.get('variantId')
                     
-                    cur.execute("SELECT id FROM variant WHERE ps_variant_id = %s;", (source_variant_id,))
+                    cur.execute("SELECT ps_variant_id FROM variant WHERE ps_variant_id = %s;", (source_variant_id,))
                     if cur.fetchone():
                         print(f"Warning: Variant {source_variant_id} already exists. Skipping CREATE for this variant.")
                         continue
@@ -77,11 +77,12 @@ def handle_product_sync(data: dict):
                     color = var.get('color')
                     price = var.get('price')
                     image = var.get('mainImage')
+                    stock = var.get('inStock')
                     
                     cur.execute("""
-                        INSERT INTO variant (product_id, color, price, image, ps_product_id, ps_variant_id)
+                        INSERT INTO variant (color, price, image, ps_product_id, ps_variant_id, stock)
                         VALUES (%s, %s, %s, %s, %s, %s);
-                    """, (internal_product_id, color, price, image, source_product_id, source_variant_id))
+                    """, (color, price, image, source_product_id, source_variant_id,stock))
 
         # ==========================================
         # 2. UPDATE
@@ -90,7 +91,7 @@ def handle_product_sync(data: dict):
             
             if update_entity == "PRODUCT":
                 
-                cur.execute("SELECT id FROM product WHERE ps_product_id = %s;", (source_product_id,))
+                cur.execute("SELECT ps_product_id FROM product WHERE ps_product_id = %s;", (source_product_id,))
                 if not cur.fetchone():
                     print(f"Error: Product {source_product_id} not found. Cannot UPDATE.")
                     return
@@ -98,7 +99,7 @@ def handle_product_sync(data: dict):
                 cur.execute("""
                     UPDATE product 
                     SET name = COALESCE(%s, name),
-                        rating = COALESCE(%s, rating),
+                        average_rating = COALESCE(%s, average_rating),
                         rated_quantity = COALESCE(%s, rated_quantity),
                         brand = COALESCE(%s, brand),
                         category = COALESCE(%s, category)
@@ -109,7 +110,7 @@ def handle_product_sync(data: dict):
                 for var in variants:
                     source_variant_id = var.get('variantId')
                     
-                    cur.execute("SELECT id FROM variant WHERE ps_variant_id = %s;", (source_variant_id,))
+                    cur.execute("SELECT ps_variant_id FROM variant WHERE ps_variant_id = %s;", (source_variant_id,))
                     if not cur.fetchone():
                         print(f"Error: Variant {source_variant_id} not found. Cannot UPDATE.")
                         continue
@@ -117,14 +118,16 @@ def handle_product_sync(data: dict):
                     color = var.get('color')
                     price = var.get('price')
                     image = var.get('mainImage') 
+                    stock = var.get('inStock')
                     
                     cur.execute("""
                         UPDATE variant 
                         SET color = COALESCE(%s, color),
                             price = COALESCE(%s, price),
-                            image = COALESCE(%s, image)
+                            image = COALESCE(%s, image),
+                            stock = COALESCE(%s, stock)
                         WHERE ps_variant_id = %s;
-                    """, (color, price, image, source_variant_id))
+                    """, (color, price, image,stock, source_variant_id))
 
         # ==========================================
         # 3. DELETE
@@ -172,7 +175,7 @@ def handle_product_sync(data: dict):
         if conn:
             release_pg_conn(conn)
 
-def handle_inventory_sync(data: dict):
+def handle_inventory_sync(data:dict):
     """
     Handles the UpdateCartProductDetailEvent to sync inventory stock.
     """
@@ -216,7 +219,7 @@ def handle_inventory_sync(data: dict):
         if conn:
             release_pg_conn(conn)
 
-def handle_rating_sync(data: dict):
+def handle_rating_sync(data:dict):
     """
     Handles rating updates from Kafka and synchronizes the average rating 
     to the AI product table.
@@ -241,7 +244,7 @@ def handle_rating_sync(data: dict):
 
         cur.execute("""
             UPDATE product 
-            SET rating = %s,
+            SET average_rating = %s,
                 rated_quantity = %s
             WHERE ps_product_id = %s;
         """, (new_rating, new_rated_quantity, source_product_id))

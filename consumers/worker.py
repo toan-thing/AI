@@ -43,6 +43,9 @@ def start_kafka_consumer():
                 
                 raw_data = msg.value().decode('utf-8')
                 data_dict = json.loads(raw_data)
+
+                if isinstance(data_dict, str):
+                    data_dict = json.loads(data_dict)
                 
                 print(f"Received message from topic [{current_topic}]: {data_dict}")
                 
