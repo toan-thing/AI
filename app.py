@@ -4,8 +4,12 @@ from typing import Optional, Dict
 import time
 import os
 import traceback
+import threading
+from contextlib import asynccontextmanager
 
 from langchain_core.messages import HumanMessage, messages_from_dict
+from consumers.worker import start_kafka_consumer
+
 
 from agent.agent import graph
 from agent.utils.state import create_initial_state, AgentState
@@ -15,13 +19,25 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("--- Starting Kafka Consumer Thread ---")
+    kafka_thread = threading.Thread(target=start_kafka_consumer, daemon=True)
+    kafka_thread.start()
+    
+    yield
+    print("--- Shutting down AI Service ---")
 
 
-
-app = FastAPI()
+#app = FastAPI()
+app = FastAPI(
+    title="AI Agent Service",
+    openapi_url="/api/agent/openapi.json", 
+    docs_url="/api/agent/docs",            
+    redoc_url=None,
+    lifespan=lifespan                         
+)
 router = APIRouter(prefix="/api/agent")
-
-
 
 class SessionData:
     def __init__(self, state: AgentState):
@@ -180,3 +196,4 @@ def health():
 
 
 app.include_router(router)
+
