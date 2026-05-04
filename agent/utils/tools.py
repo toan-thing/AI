@@ -23,8 +23,9 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
     - price range
     - specifications (RAM, storage, screen size, refresh rate, response time, weight, battery, release year.)
 
-    The tool returns top matching products sorted by rating, along with full details:
-    variants (price, color) and technical specifications.
+    The tool returns top matching products sorted by average_rating * rated_quantity,
+    filtered to only include products with stock available, along with full details:
+    variants (price, color, stock) and technical specifications.
 
     Also returns total number of matched products to indicate result coverage.
     """
@@ -43,6 +44,15 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
         where_clauses: List[str] = []
         values: List[Any] = []
 
+        # Chỉ lấy sản phẩm còn hàng
+        where_clauses.append("""
+            EXISTS (
+                SELECT 1 FROM variant v
+                WHERE v.ps_product_id = p.ps_product_id
+                AND v.stock > 0
+            )
+        """)
+
         if state.category:
             where_clauses.append("p.category = %s")
             values.append(state.category)
@@ -59,7 +69,7 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
             where_clauses.append("""
                 EXISTS (
                     SELECT 1 FROM variant v
-                    WHERE v.product_id = p.id
+                    WHERE v.ps_product_id = p.ps_product_id
                     AND v.color ILIKE %s
                 )
             """)
@@ -69,7 +79,7 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
             where_clauses.append("""
                 EXISTS (
                     SELECT 1 FROM variant v
-                    WHERE v.product_id = p.id
+                    WHERE v.ps_product_id = p.ps_product_id
                     AND v.price >= %s
                 )
             """)
@@ -79,7 +89,7 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
             where_clauses.append("""
                 EXISTS (
                     SELECT 1 FROM variant v
-                    WHERE v.product_id = p.id
+                    WHERE v.ps_product_id = p.ps_product_id
                     AND v.price <= %s
                 )
             """)
@@ -97,7 +107,7 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
                     where_clauses.append("""
                         EXISTS (
                             SELECT 1 FROM product_spec ps
-                            WHERE ps.product_id = p.id
+                            WHERE ps.ps_product_id = p.ps_product_id
                             AND ps.spec_key = %s
                             AND ps.value_num >= %s
                         )
@@ -106,7 +116,7 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
                     where_clauses.append("""
                         EXISTS (
                             SELECT 1 FROM product_spec ps
-                            WHERE ps.product_id = p.id
+                            WHERE ps.ps_product_id = p.ps_product_id
                             AND ps.spec_key = %s
                             AND ps.value_num <= %s
                         )
@@ -115,7 +125,7 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
                     where_clauses.append("""
                         EXISTS (
                             SELECT 1 FROM product_spec ps
-                            WHERE ps.product_id = p.id
+                            WHERE ps.ps_product_id = p.ps_product_id
                             AND ps.spec_key = %s
                             AND ps.value_num = %s
                         )
@@ -129,42 +139,42 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
         id_query = f"""
-            SELECT p.id, p.rating
+            SELECT p.ps_product_id
             FROM product p
             {where_sql}
-            ORDER BY p.rating DESC
+            ORDER BY (p.average_rating * p.rated_quantity) DESC NULLS LAST
             LIMIT 5
         """
 
         cur.execute(id_query, values)
         id_rows = cur.fetchall()
-
         product_ids = [r[0] for r in id_rows]
 
-        # nếu k có kết quả
         if not product_ids:
             return {
                 "total": 0,
                 "products": []
             }
-        
+
         count_query = f"SELECT COUNT(*) FROM product p {where_sql}"
         cur.execute(count_query, values)
         total = cur.fetchone()[0]
 
         hydrate_query = """
-            SELECT 
-                p.id,
+            SELECT
+                p.ps_product_id,
                 p.name,
                 p.category,
                 p.brand,
                 p.series,
-                p.rating,
+                p.average_rating,
+                p.rated_quantity,
 
                 json_agg(DISTINCT jsonb_build_object(
-                    'id', v.id,
+                    'id', v.ps_variant_id,
                     'color', v.color,
                     'price', v.price,
+                    'stock', v.stock,
                     'image', v.image
                 )) AS variants,
 
@@ -176,11 +186,11 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
                 )) AS specs
 
             FROM product p
-            LEFT JOIN variant v ON p.id = v.product_id
-            LEFT JOIN product_spec ps ON p.id = ps.product_id
-            WHERE p.id = ANY(%s::uuid[])
-            GROUP BY p.id
-            ORDER BY p.rating DESC
+            LEFT JOIN variant v ON p.ps_product_id = v.ps_product_id
+            LEFT JOIN product_spec ps ON p.ps_product_id = ps.ps_product_id
+            WHERE p.ps_product_id = ANY(%s::uuid[])
+            GROUP BY p.ps_product_id
+            ORDER BY (p.average_rating * p.rated_quantity) DESC NULLS LAST
         """
 
         cur.execute(hydrate_query, (product_ids,))
@@ -193,9 +203,10 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
                 "category": r[2],
                 "brand": r[3],
                 "series": r[4],
-                "rating": r[5],
-                "variants": r[6] or [],
-                "specs": r[7] or [],
+                "average_rating": r[5],
+                "rated_quantity": r[6],
+                "variants": r[7] or [],
+                "specs": r[8] or [],
             }
             for r in rows
         ]
@@ -204,7 +215,7 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
             "total": total,
             "returned": len(products),
             "products": products,
-            "note": "Top products by rating after filtering constraints"
+            "note": "Top products by average_rating * rated_quantity after filtering constraints. Only products with stock > 0 are included."
         }
 
     finally:
@@ -222,8 +233,8 @@ def query_resolved_products(state: Annotated[AgentState, InjectedState]) -> Dict
     resolved to product IDs in the agent state.
 
     This tool fetches complete information including:
-    - product info (name, category, brand, series, ...)
-    - variants (price, color, image)
+    - product info (name, category, brand, series, average_rating, rated_quantity)
+    - variants (price, color, stock, image)
     - technical specifications
 
     Useful for product comparison, detailed explanation, or follow-up questions.
@@ -233,13 +244,11 @@ def query_resolved_products(state: Annotated[AgentState, InjectedState]) -> Dict
     cur = conn.cursor()
 
     try:
-        product_ids = [
+        product_ids = list(set([
             p.product_id
             for p in state.resolved_products
             if p.product_id is not None
-        ]
-
-        product_ids = list(set(product_ids))
+        ]))
 
         if not product_ids:
             return {
@@ -249,18 +258,20 @@ def query_resolved_products(state: Annotated[AgentState, InjectedState]) -> Dict
             }
 
         query = """
-            SELECT 
-                p.id,
+            SELECT
+                p.ps_product_id,
                 p.name,
                 p.category,
                 p.brand,
                 p.series,
-                p.rating,
+                p.average_rating,
+                p.rated_quantity,
 
                 json_agg(DISTINCT jsonb_build_object(
-                    'id', v.id,
+                    'id', v.ps_variant_id,
                     'color', v.color,
                     'price', v.price,
+                    'stock', v.stock,
                     'image', v.image
                 )) AS variants,
 
@@ -272,11 +283,11 @@ def query_resolved_products(state: Annotated[AgentState, InjectedState]) -> Dict
                 )) AS specs
 
             FROM product p
-            LEFT JOIN variant v ON p.id = v.product_id
-            LEFT JOIN product_spec ps ON p.id = ps.product_id
-            WHERE p.id = ANY(%s::uuid[])
-            GROUP BY p.id
-            ORDER BY p.rating DESC
+            LEFT JOIN variant v ON p.ps_product_id = v.ps_product_id
+            LEFT JOIN product_spec ps ON p.ps_product_id = ps.ps_product_id
+            WHERE p.ps_product_id = ANY(%s::uuid[])
+            GROUP BY p.ps_product_id
+            ORDER BY (p.average_rating * p.rated_quantity) DESC NULLS LAST
         """
 
         cur.execute(query, (product_ids,))
@@ -289,9 +300,10 @@ def query_resolved_products(state: Annotated[AgentState, InjectedState]) -> Dict
                 "category": r[2],
                 "brand": r[3],
                 "series": r[4],
-                "rating": r[5],
-                "variants": r[6] or [],
-                "specs": r[7] or [],
+                "average_rating": r[5],
+                "rated_quantity": r[6],
+                "variants": r[7] or [],
+                "specs": r[8] or [],
             }
             for r in rows
         ]

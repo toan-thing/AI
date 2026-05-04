@@ -280,14 +280,14 @@ Output:
     ("placeholder", "{messages}")
 ])
 
-parse_llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    temperature=0.0,
-)
-# parse_llm = ChatGroq(
-#     model="llama-3.3-70b-versatile",
+# parse_llm = ChatGoogleGenerativeAI(
+#     model="gemini-2.5-flash",
 #     temperature=0.0,
 # )
+parse_llm = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    temperature=0.0,
+)
 
 parse_runnable = parse_prompt | parse_llm.with_structured_output(ParseOutput)
 
@@ -322,7 +322,7 @@ def Resolve_products(state: AgentState, config: RunnableConfig):
 
             cur.execute(
                 """
-                SELECT id, name, similarity(name, %s) AS sim
+                SELECT ps_product_id, name, similarity(name, %s) AS sim
                 FROM product
                 WHERE similarity(name, %s) > 0.3
                 ORDER BY sim DESC
