@@ -368,6 +368,7 @@ class Reason:
 
     def __call__(self, state: AgentState, config: RunnableConfig):
         llm_input = build_llm_input(state)
+        llm_input["time"] = datetime.now()
         local_messages = list(llm_input["messages"])
         while True:
             result = self.runnable.invoke({**llm_input, "messages": local_messages})
@@ -501,7 +502,7 @@ Nếu đã có dữ liệu từ tool hoặc resolved_products:
 {state}"""
     ),
     ("placeholder", "{messages}")
-]).partial(time=datetime.now())
+])
 
 # reason_llm = ChatGoogleGenerativeAI(
 #     model="gemini-2.5-flash",

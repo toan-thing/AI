@@ -91,9 +91,10 @@ def chat(req: ChatRequest):
             req.customer_id
         )
 
-        state_dict = state.model_dump()
-        state_dict["messages"] = state.messages + [HumanMessage(content=req.message)]
-        result_dict = graph.invoke(state_dict)
+        result_dict = graph.invoke({
+            **state.model_dump(exclude={"messages"}),
+            "messages": state.messages + [HumanMessage(content=req.message)],
+        })
 
         updated_state = AgentState(**result_dict)
         save_session(req.session_id, updated_state)
