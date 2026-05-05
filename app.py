@@ -78,9 +78,7 @@ class ChatRequest(BaseModel):
 
 class PurchaseRequest(BaseModel):
     customer_id: str
-    product_name: str
-    color: str
-    price: float
+    variant_id: str
     amount: int = 1
 
 @router.post("/chat")
@@ -118,35 +116,27 @@ def update_purchase(req: PurchaseRequest):
     try:
         with neo4j_driver.session() as session:
             result = session.run("""
-                MATCH (p:Product {name: $product_name})-[:HAS_VARIANT]->(v:Variant)
-                WHERE v.color = $color AND v.price = $price
+                MATCH (v:Variant {id: $variant_id})
                 RETURN v
-            """, {
-                "product_name": req.product_name,
-                "color": req.color,
-                "price": req.price,
-            })
+            """, {"variant_id": req.variant_id})
 
             record = result.single()
             if not record:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"No variant found for product '{req.product_name}' with color '{req.color}' and price {req.price}"
+                    detail=f"No variant found with id '{req.variant_id}'"
                 )
 
             session.run("""
                 MERGE (c:Customer {id: $customer_id})
                 WITH c
-                MATCH (p:Product {name: $product_name})-[:HAS_VARIANT]->(v:Variant)
-                WHERE v.color = $color AND v.price = $price
+                MATCH (v:Variant {id: $variant_id})
                 MERGE (c)-[r:BOUGHT]->(v)
                 ON CREATE SET r.amount = $amount
                 ON MATCH SET r.amount = r.amount + $amount
             """, {
                 "customer_id": req.customer_id,
-                "product_name": req.product_name,
-                "color": req.color,
-                "price": req.price,
+                "variant_id": req.variant_id,
                 "amount": req.amount,
             })
 
