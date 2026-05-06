@@ -80,7 +80,7 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
                 EXISTS (
                     SELECT 1 FROM variant v
                     WHERE v.ps_product_id = p.ps_product_id
-                    AND v.price >= %s
+                    AND v.price_after_discount >= %s
                 )
             """)
             values.append(state.price_min)
@@ -90,7 +90,7 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
                 EXISTS (
                     SELECT 1 FROM variant v
                     WHERE v.ps_product_id = p.ps_product_id
-                    AND v.price <= %s
+                    AND v.price_after_discount <= %s
                 )
             """)
             values.append(state.price_max)
@@ -174,6 +174,7 @@ def query_products(state: Annotated[AgentState, InjectedState]) -> Dict[str, Any
                     'id', v.ps_variant_id,
                     'color', v.color,
                     'price', v.price,
+                    'price_after_discount', v.price_after_discount,
                     'stock', v.stock,
                     'image', v.image
                 )) AS variants,
@@ -271,6 +272,7 @@ def query_resolved_products(state: Annotated[AgentState, InjectedState]) -> Dict
                     'id', v.ps_variant_id,
                     'color', v.color,
                     'price', v.price,
+                    'price_after_discount', v.price_after_discount,
                     'stock', v.stock,
                     'image', v.image
                 )) AS variants,
