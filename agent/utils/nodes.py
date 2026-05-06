@@ -4,8 +4,9 @@ from typing import Optional, Literal, List, Dict, Any
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableConfig
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq
+# from langchain_google_genai import ChatGoogleGenerativeAI
+# from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 from .state import AgentState, SpecState, SpecFilter, ResolvedProduct
@@ -284,9 +285,15 @@ Output:
 #     model="gemini-2.5-flash",
 #     temperature=0.0,
 # )
-parse_llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
-    temperature=0.0,
+# parse_llm = ChatGroq(
+#     model="llama-3.3-70b-versatile",
+#     temperature=0.0,
+# )
+parse_llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    temperature=0,
+    max_tokens=512,
+    max_retries=3,
 )
 
 parse_runnable = parse_prompt | parse_llm.with_structured_output(ParseOutput)
@@ -511,10 +518,16 @@ Nếu đã có dữ liệu từ tool hoặc resolved_products:
 #     timeout=20,
 #     max_retries=3,
 # )
-reason_llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
-    temperature=0.2,
-    timeout=20,
+# reason_llm = ChatGroq(
+#     model="llama-3.3-70b-versatile",
+#     temperature=0.2,
+#     timeout=20,
+#     max_retries=3,
+# )
+reason_llm = ChatOpenAI(
+    model="gpt-4o",
+    temperature=0.3,
+    max_tokens=1024,
     max_retries=3,
 )
 
