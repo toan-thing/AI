@@ -17,6 +17,7 @@ def handle_product_sync(data:dict):
         rated_quantity = data.get('ratedQuantity')
         brand = data.get('brand')
         category = data.get('category')
+        price_after_discount = data.get('price_after_discount')
         
         update_type = data.get('updateType')
         update_entity = data.get('updateEntity')
@@ -53,9 +54,9 @@ def handle_product_sync(data:dict):
                     stock = var.get('inStock')
                     
                     cur.execute("""
-                        INSERT INTO variant (color, price, image, ps_product_id, ps_variant_id, stock)
-                        VALUES (%s, %s, %s, %s, %s, %s);
-                    """, (color, price, image, source_product_id, source_variant_id, stock))
+                        INSERT INTO variant (color, price, image, ps_product_id, ps_variant_id, stock,price_after_discount)
+                        VALUES (%s, %s, %s, %s, %s, %s,%s);
+                    """, (color, price, image, source_product_id, source_variant_id, stock,price_after_discount))
 
             elif update_entity == "VARIANT":
                 cur.execute("SELECT ps_product_id FROM product WHERE ps_product_id = %s;", (source_product_id,))
@@ -80,9 +81,9 @@ def handle_product_sync(data:dict):
                     stock = var.get('inStock')
                     
                     cur.execute("""
-                        INSERT INTO variant (color, price, image, ps_product_id, ps_variant_id, stock)
-                        VALUES (%s, %s, %s, %s, %s, %s);
-                    """, (color, price, image, source_product_id, source_variant_id,stock))
+                        INSERT INTO variant (color, price, image, ps_product_id, ps_variant_id, stock,price_after_discount)
+                        VALUES (%s, %s, %s, %s, %s, %s,%s);
+                    """, (color, price, image, source_product_id, source_variant_id,stock,price_after_discount))
 
         # ==========================================
         # 2. UPDATE
@@ -119,15 +120,17 @@ def handle_product_sync(data:dict):
                     price = var.get('price')
                     image = var.get('mainImage') 
                     stock = var.get('inStock')
+                    price_after_discount = var.get('price_after_discount')
                     
                     cur.execute("""
                         UPDATE variant 
                         SET color = COALESCE(%s, color),
                             price = COALESCE(%s, price),
                             image = COALESCE(%s, image),
-                            stock = COALESCE(%s, stock)
+                            stock = COALESCE(%s, stock),
+                            price_after_discount = COALESCE(%s,price_after_discount)
                         WHERE ps_variant_id = %s;
-                    """, (color, price, image,stock, source_variant_id))
+                    """, (color, price, image,stock,price_after_discount, source_variant_id))
 
         # ==========================================
         # 3. DELETE
