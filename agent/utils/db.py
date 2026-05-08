@@ -45,10 +45,10 @@ def release_pg_conn(conn):
 
 neo4j_driver: Driver = GraphDatabase.driver(
     must_getenv("NEO4J_URI"),
-    auth=(
-        must_getenv("NEO4J_USER"),
-        must_getenv("NEO4J_PASSWORD"),
-    ),
+    auth=(must_getenv("NEO4J_USER"), must_getenv("NEO4J_PASSWORD")),
+    connection_timeout=30,
+    max_connection_lifetime=3600,
+    keep_alive=True,
 )
 
 
