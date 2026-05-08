@@ -28,6 +28,10 @@ pg_pool = SimpleConnectionPool(
     user=must_getenv("PG_USER"),
     password=must_getenv("PG_PASSWORD"),
     port=int(os.getenv("PG_PORT", "5432")),
+    keepalives=1,
+    keepalives_idle=30,
+    keepalives_interval=10,
+    keepalives_count=5,
 )
 
 def get_pg_conn():
