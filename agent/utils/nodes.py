@@ -281,19 +281,11 @@ Output:
     ("placeholder", "{messages}")
 ])
 
-# parse_llm = ChatGoogleGenerativeAI(
-#     model="gemini-2.5-flash",
-#     temperature=0.0,
-# )
-# parse_llm = ChatGroq(
-#     model="llama-3.3-70b-versatile",
-#     temperature=0.0,
-# )
 parse_llm = ChatOpenAI(
     model="gpt-4o-mini",
     temperature=0,
-    max_tokens=512,
-    max_retries=3,
+    timeout=10.0,
+    max_retries=2,
 )
 
 parse_runnable = parse_prompt | parse_llm.with_structured_output(ParseOutput)
@@ -511,24 +503,11 @@ Nếu đã có dữ liệu từ tool hoặc resolved_products:
     ("placeholder", "{messages}")
 ])
 
-# reason_llm = ChatGoogleGenerativeAI(
-#     model="gemini-2.5-flash",
-#     temperature=0.2,
-#     max_output_tokens=768,
-#     timeout=20,
-#     max_retries=3,
-# )
-# reason_llm = ChatGroq(
-#     model="llama-3.3-70b-versatile",
-#     temperature=0.2,
-#     timeout=20,
-#     max_retries=3,
-# )
 reason_llm = ChatOpenAI(
     model="gpt-4o",
     temperature=0.3,
-    max_tokens=1024,
-    max_retries=3,
+    timeout=20.0,
+    max_retries=2,
 )
 
 reason_runnable = reason_prompt | reason_llm.bind_tools(
