@@ -3,7 +3,7 @@ import json
 from confluent_kafka import Consumer, KafkaError
 from dotenv import load_dotenv
 
-from consumers.handlers import handle_product_sync, handle_inventory_sync, handle_rating_sync
+from consumers.handlers import handle_product_sync, handle_inventory_sync, handle_rating_sync, handle_purchase_events
 
 load_dotenv()
 
@@ -19,7 +19,8 @@ def start_kafka_consumer():
     topics = [
         'product.detail.command',
         'update.cart.product.quantity.command',
-        'product.rating.updated'
+        'product.rating.updated',
+        'purchase.events'
     ] 
     
     consumer.subscribe(topics)
@@ -57,6 +58,9 @@ def start_kafka_consumer():
 
                 elif current_topic == 'product.rating.updated':
                     handle_rating_sync(data_dict)
+
+                elif current_topic == 'purchase.events':
+                    handle_purchase_events(data_dict)
                     
                 else:
                     print(f"Warning: No handler defined for topic {current_topic}")

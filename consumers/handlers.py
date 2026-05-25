@@ -2,6 +2,8 @@ from agent.utils.db import get_pg_conn, release_pg_conn
 
 from agent.utils.db import get_pg_conn, release_pg_conn
 
+from consumers.purcharse_service import update_purchase, PurchaseRequest
+
 import json
 
 def handle_product_sync(data:dict):
@@ -265,3 +267,29 @@ def handle_rating_sync(data:dict):
             cur.close()
         if conn:
             release_pg_conn(conn)
+
+def handle_purchase_events(data:dict):
+    """
+    Handles purchase events from Kafka to update user preferences in Neo4j.
+    """
+    try:
+        customer_id = data.get('userId')
+        order_id = data.get('orderId')
+
+        if not customer_id or not order_id:
+            print("Warning: Missing userId or orderId in purchase event data, skipping.")
+            return
+        
+        for item in data["items"]:
+            update_purchase(
+                PurchaseRequest(
+                    customer_id=data["userId"],
+                    variant_id=item["variantId"],
+                    amount=item["quantity"]
+                )
+            )
+
+        print(f"Successfully processed purchase event for Customer ID: {customer_id}, Order ID: {order_id}")
+
+    except Exception as e:
+        print(f"Error processing purchase event: {e}")
