@@ -7,13 +7,13 @@ import traceback
 import threading
 from contextlib import asynccontextmanager
 
-from langchain_core.messages import HumanMessage, messages_from_dict
+from langchain_core.messages import HumanMessage, AIMessage
 from consumers.worker import start_kafka_consumer
 
 
 from agent.agent import graph
 from agent.utils.state import create_initial_state, AgentState
-from agent.utils.db import neo4j_driver
+from agent.utils.db import neo4j_driver, close_all
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -27,9 +27,9 @@ async def lifespan(app: FastAPI):
     
     yield
     print("--- Shutting down AI Service ---")
+    close_all()
 
 
-#app = FastAPI()
 app = FastAPI(
     title="AI Agent Service",
     openapi_url="/api/agent/openapi.json", 
@@ -99,9 +99,7 @@ def chat(req: ChatRequest):
         updated_state = AgentState(**result_dict)
         save_session(req.session_id, updated_state)
 
-        reply = ""
-        if updated_state.messages:
-            reply = updated_state.messages[-1].content
+        reply = next((m.content for m in reversed(updated_state.messages) if isinstance(m, AIMessage)),"")
 
         return {
             "session_id": req.session_id,

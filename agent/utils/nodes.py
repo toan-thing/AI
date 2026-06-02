@@ -4,8 +4,6 @@ from typing import Optional, Literal, List, Dict, Any
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableConfig
-# from langchain_google_genai import ChatGoogleGenerativeAI
-# from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 

@@ -35,7 +35,13 @@ pg_pool = SimpleConnectionPool(
 )
 
 def get_pg_conn():
-    return pg_pool.getconn()
+    conn = pg_pool.getconn()
+    try:
+        conn.cursor().execute("SELECT 1")
+    except Exception:
+        pg_pool.putconn(conn, close=True)
+        conn = pg_pool.getconn()
+    return conn
 
 def release_pg_conn(conn):
     if conn:

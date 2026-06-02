@@ -1,8 +1,6 @@
 langgraph
 langchain
 langsmith
-# langchain-google-genai
-# langchain-groq
 langchain-openai
 
 fastapi
